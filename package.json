@@ -1,0 +1,19 @@
+{
+  "name": "pi-pi-meta-agent",
+  "version": "1.0.0",
+  "description": "Meta-agent that designs and builds Pi Agent modules in parallel using specialized experts",
+  "keywords": ["pi-package"],
+  "type": "module",
+  "dependencies": {
+    "yaml": "^2.3.4"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": ["extensions/*.ts"],
+    "themes": ["themes/*.json"]
+  }
+}
