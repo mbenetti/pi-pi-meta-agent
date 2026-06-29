@@ -1,4 +1,4 @@
-# 🌹 Pi-Pi Parallel Meta-Agent Builder
+# Pi-Pi Parallel Meta-Agent Builder
 
 A parallel multi-agent development engine for [Pi Coding Agent](https://pi.dev). Pi-Pi acts as a meta-developer: when you ask it to build an agent, extension, or theme, it spawns 5 specialized expert sub-agents in parallel, collects their fresh documentation findings and patterns, and merges them into code.
 
