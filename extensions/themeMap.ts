@@ -28,11 +28,11 @@ export const THEME_MAP: Record<string, string> = {
 	"damage-control":     "gruvbox",          // grounded, earthy safety
 	"minimal":            "synthwave",        // synthwave by default now!
 	"pure-focus":         "everforest",       // calm, distraction-free
-	"pi-pi-tree":         "rose-pine",        // warm creative meta-agent pi-pi-tree
-	"pi-pi":              "rose-pine",        // warm creative meta-agent
+	"pi-pi-tree":         "midnight-ocean",   // warm creative meta-agent pi-pi-tree
+	"pi-pi":              "midnight-ocean",   // warm creative meta-agent
 	"purpose-gate":       "tokyo-night",      // intentional, sharp focus
-	"scroll-select-grid":  "rose-pine",
-	"scrolling-cell-helper": "rose-pine",
+	"scroll-select-grid":  "midnight-ocean",
+	"scrolling-cell-helper": "midnight-ocean",
 	"session-replay":     "catppuccin-mocha", // soft, reflective history
 	"subagent-widget":    "cyberpunk",        // multi-agent futuristic
 	"system-select":      "catppuccin-mocha", // soft selection UI

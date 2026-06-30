@@ -750,13 +750,13 @@ const MOCK_TELEMETRY_PIPELINE: ListEntry[] = [
   },
   {
     id: "task-105",
-    name: "Synthesize Rose Pine theme palette",
+    name: "Synthesize Midnight Ocean theme palette",
     status: "success",
     priority: "LOW",
     progress: 100,
     elapsed: "0.4s",
     category: "Themes",
-    details: "Mapped winter rose tones, gold, foam color badges to memory store.\nBorder frames set to deep mute accents successfully."
+    details: "Mapped midnight ocean tones, teal, amber color badges to memory store.\nBorder frames set to deep mute accents successfully."
   },
   {
     id: "task-106",

@@ -1177,7 +1177,7 @@ export default function (pi: ExtensionAPI) {
 
         theme.instances.push({
           id: "theme_1",
-          question: "Cozy rose matching schemes",
+          question: "Midnight Ocean theme palette",
           status: "researching",
           activity: {
             contextLoaded: true,
@@ -1238,7 +1238,7 @@ export default function (pi: ExtensionAPI) {
         if (theme.instances.length >= 1) {
           theme.instances[0].status = "done";
           theme.instances[0].activity.elapsed = 2900;
-          theme.instances[0].activity.currentTask = "Styled color focus indicators and winter rose borders.";
+          theme.instances[0].activity.currentTask = "Styled color focus indicators and midnight ocean borders.";
         }
       }
 

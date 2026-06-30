@@ -547,10 +547,10 @@ const MOCK_OPTIONS_STORE: GridSelectItem[] = [
   },
   {
     value: "theme-expert-spec",
-    label: "Rose Pine Theme Builder",
+    label: "Midnight Ocean Theme Builder",
     category: "Experts",
-    tags: ["colors", "ansi", "rose-pine"],
-    description: "Applies warm rose, gold, and foam design tokens to elements.",
+    tags: ["colors", "ansi", "midnight-ocean"],
+    description: "Applies deep ocean blue, teal, and amber design tokens to elements.",
     details: "Coordinates high-fidelity color design, sets up select selection highlighted tags, configures dim/muted comments, and customizes window frame colors."
   },
   {
@@ -582,7 +582,7 @@ const MOCK_OPTIONS_STORE: GridSelectItem[] = [
     label: "Duo border highlight widget",
     category: "Borders",
     tags: ["widget", "ansi", "ascii"],
-    description: "Double border panel coordinator matching winter rose palettes.",
+    description: "Double border panel coordinator matching midnight ocean palettes.",
     details: "Uses advanced Unicode boundary boxes to group multi-agent terminals side-by-side, adding shadow overlays and blinking cursors."
   }
 ];

@@ -58,7 +58,7 @@ If you are developing extensions, custom tools, or want to run the dashboard dir
    git clone https://github.com/mbenetti/pi-pi-meta-agent.git && cd pi-pi-meta-agent && npm install && pi -e extensions/pi-pi-tree.ts
    ```
 
-*This automatically loads the warm creative Rose Pine theme, establishes the active Tree layout widget tracking all experts in real-time, registers the `query_tree_researchers` tool for parallel execution, and listens for requests.*
+*This automatically loads the deep, focused Midnight Ocean theme, establishes the active Tree layout widget tracking all experts in real-time, registers the `query_tree_researchers` tool for parallel execution, and listens for requests.*
 
 ## Custom Commands
 
