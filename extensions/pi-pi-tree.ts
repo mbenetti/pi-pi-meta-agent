@@ -58,10 +58,18 @@ interface AgentActivity {
   contextValue: number;
 }
 
+interface AgentInstance {
+  id: string;
+  question: string;
+  status: "researching" | "done" | "error";
+  activity: AgentActivity;
+}
+
 interface AgentState {
   def: ExpertDef;
   status: "idle" | "researching" | "done" | "error";
   activity: AgentActivity;
+  instances: AgentInstance[];
   color: { bg: string; br: string };
 }
 
@@ -190,16 +198,16 @@ function toolToIcon(toolName: string): ActivityIcon {
 
 function activityIconToEmoji(icon: ActivityIcon): string {
   switch (icon) {
-    case "context": return "📄";
-    case "search":  return "🔍";
-    case "read":    return "📖";
-    case "write":   return "✏️";
-    case "edit":    return "🔧";
-    case "bash":    return "⚙️";
-    case "grep":    return "🔎";
-    case "find":    return "📂";
-    case "ls":      return "📋";
-    case "custom":  return "🔨";
+    case "context": return "▫";
+    case "search":  return "⌕";
+    case "read":    return "▤";
+    case "write":   return "✎";
+    case "edit":    return "⚙";
+    case "bash":    return "›";
+    case "grep":    return "⌗";
+    case "find":    return "◇";
+    case "ls":      return "☰";
+    case "custom":  return "⊹";
     default:        return "";
   }
 }
@@ -265,6 +273,7 @@ export default function (pi: ExtensionAPI) {
               startTime: null,
               contextValue: 0,
             },
+            instances: [],
             color: colors,
           });
         }
@@ -297,7 +306,7 @@ export default function (pi: ExtensionAPI) {
 
         // Header
         const header = theme.fg("accent", theme.bold("  ⚙️  Pi-Pi Meta Agent Builder"))
-          + theme.fg("dim", `  │  Team: ${state.currentTeam}`);
+          + theme.fg("dim", "   │ ○ Waiting for research to begin...");
         lines.push(header);
         lines.push(theme.fg("dim", "  " + "─".repeat(Math.min(60, Math.floor(width / 3)))));
 
@@ -305,23 +314,51 @@ export default function (pi: ExtensionAPI) {
         for (const [key, agent] of state.agents) {
           const line = renderAgentLine(agent, width - 4, theme);
           lines.push(line);
+
+          if (agent.instances && agent.instances.length > 1) {
+            for (let i = 1; i < agent.instances.length; i++) {
+              const inst = agent.instances[i];
+              const isLast = i === agent.instances.length - 1;
+              const childLine = renderInstanceLine(agent, inst, isLast, width - 4, theme);
+              lines.push(childLine);
+            }
+          }
         }
 
-        // Footer
+        // Footer (Legends moved to the bottom)
         lines.push("");
-        const active = Array.from(state.agents.values()).filter(a => a.status === "researching").length;
-        const done = Array.from(state.agents.values()).filter(a => a.status === "done").length;
-        const total = state.agents.size;
+        lines.push(theme.fg("dim", "  " + "─".repeat(Math.min(60, Math.floor(width / 3)))));
 
-        if (active > 0) {
-          lines.push(theme.fg("accent", `  ◉ ${active} active`) + theme.fg("dim", `  ·  ${done}/${total} done`));
-        } else if (done > 0) {
-          lines.push(theme.fg("success", `  ✓ All ${done} agents completed`) + theme.fg("dim", `  ·  ${done}/${total}`));
-        } else {
-          lines.push(theme.fg("dim", `  ○ Waiting for research to begin...`));
+        // Icon legends
+        const legendItems = [
+          { icon: "▫", label: "context" },
+          { icon: "▤", label: "read" },
+          { icon: "✎", label: "write" },
+          { icon: "⚙", label: "edit" },
+          { icon: "›", label: "command" },
+          { icon: "⌕", label: "search" },
+          { icon: "⌗", label: "grep" },
+          { icon: "◇", label: "find" },
+          { icon: "☰", label: "list" },
+          { icon: "⊹", label: "custom" },
+        ];
+
+        // Format into rows of maximum width
+        const colWidth = 12;
+        const colsPerRow = Math.max(2, Math.floor((width - 4) / colWidth));
+
+        // Chunk legend items based on colsPerRow
+        const rowsCount = Math.ceil(legendItems.length / colsPerRow);
+        for (let r = 0; r < rowsCount; r++) {
+          const rowItems = legendItems.slice(r * colsPerRow, (r + 1) * colsPerRow);
+          let rowStr = "  ";
+          for (const item of rowItems) {
+            const itemText = `${item.icon} ${item.label}`;
+            const padLen = Math.max(0, colWidth - visibleWidth(itemText));
+            rowStr += `${item.icon} ` + theme.fg("dim", item.label) + " ".repeat(padLen);
+          }
+          lines.push(rowStr);
         }
-
-        lines.push(theme.fg("dim", `  ↑↓ navigate  ↑ space toggle  esc close`));
 
         return lines.map(l => truncateToWidth(l, width));
       },
@@ -341,7 +378,14 @@ export default function (pi: ExtensionAPI) {
   }
 
   function renderAgentLine(agent: AgentState, maxWidth: number, theme: any): string {
-    const { def, status, activity, color } = agent;
+    const { def, color } = agent;
+    let status = agent.status;
+    let activity = agent.activity;
+
+    if (agent.instances && agent.instances.length >= 1) {
+      status = agent.instances[0].status;
+      activity = agent.instances[0].activity;
+    }
 
     // Status icon + color
     const statusColor = status === "idle" ? "dim"
@@ -374,8 +418,9 @@ export default function (pi: ExtensionAPI) {
 
     // Fixed-width badge column (8 chars) — only show most recent 2 icons
     const MAX_BADGES = 2;
-    const badgeText = badges.slice(0, MAX_BADGES).join("") || "  ";
-    const badgeVisible = visibleWidth(badgeText);
+    const activeBadges = badges.slice(0, MAX_BADGES);
+    const badgeText = activeBadges.join("") || "  ";
+    const badgeVisible = activeBadges.length > 0 ? activeBadges.length * 2 : 2;
     const badgeWidth = 8; // Fixed column width
 
     // Name with color (use agent's custom color via ANSI if available)
@@ -414,50 +459,121 @@ export default function (pi: ExtensionAPI) {
     const remaining = Math.max(15, maxWidth - consumedWidth);
     const taskText = truncateTo(activity.currentTask || def.description, remaining);
 
-    // Compose line with FIXED COLUMNS
-    const bg = color.bg ? color.bg : "";
-    const bgR = color.bg ? BG_RESET : "";
-
-    const colorize = (s: string, c: string) => {
-      return (bg ? bg : "") + theme.fg(c, s) + (bg ? bgR : "");
-    };
-
+    // Compose line with FIXED COLUMNS (all using standard theme.fg without internal background resets!)
     // Column 1: Status icon (fixed 4 characters)
-    let line = colorize(`  ${statusIcon} `, statusColor);
+    let line = theme.fg(statusColor, `  ${statusIcon} `);
 
     // Column 2: Activity badges (fixed 8 characters, left-aligned)
     const padBadge = " ".repeat(Math.max(0, badgeWidth - badgeVisible));
-    line += colorize(badgeText + padBadge, status === "researching" ? "accent" : "dim");
+    line += theme.fg(status === "researching" ? "accent" : "dim", badgeText + padBadge);
 
     // Column 3: Agent name block (fixed 15 characters, left-aligned)
-    let coloredName = color.br
-      ? nameStr
-      : theme.fg("accent", theme.bold(def.displayName));
-
-    let col3 = coloredName + padName;
-    if (bg) {
-      col3 = bg + col3 + bgR;
-    }
-    line += col3;
+    line += nameStr + padName;
 
     // Column 4: Context Indicator Box (fixed 11 characters, aligned!)
-    const col4 = colorize("  ", "dim") + contextBoxStr + colorize(" ", "dim");
-    line += col4;
+    line += theme.fg("dim", "  ") + contextBoxStr + theme.fg("dim", " ");
 
     // Column 5: Task (muted, left-aligned in column)
-    if (taskText) {
-      line += colorize(`  ${taskText}`, "muted");
-      // Add padding to keep metadata trailing neat if required
-      const taskVisible = visibleWidth(taskText);
-      const padTask = " ".repeat(Math.max(0, remaining - taskVisible));
-      line += colorize(padTask, "muted");
-    } else {
-      line += colorize(" ".repeat(remaining + 2), "muted");
-    }
+    line += theme.fg("muted", `  ${taskText}`);
+    const taskVisible = visibleWidth(taskText);
+    const padTask = " ".repeat(Math.max(0, remaining - taskVisible));
+    line += theme.fg("muted", padTask);
 
     // Column 6: Time + tool count (dim)
     if (metaText) {
-      line += colorize(`  ${metaText}`, "dim");
+      line += theme.fg("dim", `  ${metaText}`);
+    } else {
+      line += "  ";
+    }
+
+    // Apply continuous agent background color all the way across the row!
+    if (color.bg) {
+      const currentWidth = visibleWidth(line);
+      if (currentWidth < maxWidth + 2) {
+        line += " ".repeat(maxWidth + 2 - currentWidth);
+      }
+      return color.bg + line + BG_RESET;
+    }
+
+    return truncateToWidth(line, maxWidth + 2);
+  }
+
+  function renderInstanceLine(agent: AgentState, instance: AgentInstance, isLast: boolean, maxWidth: number, theme: any): string {
+    const { status, activity } = instance;
+    const { color } = agent;
+
+    const statusColor = status === "researching" ? "accent"
+      : status === "done" ? "success"
+      : "error";
+
+    const statusIcon = status === "researching" ? "◉"
+      : status === "done" ? "✓"
+      : "✗";
+
+    const elapsedText = activity.startTime
+      ? theme.fg("dim", ` (${Math.round((Date.now() - activity.startTime) / 1000)}s)`)
+      : "";
+
+    // Count tools
+    const totalTools = Object.values(activity.toolCount).reduce((a, b) => a + b as number, 0) as number;
+    const toolText = totalTools > 0 ? theme.fg("dim", ` [${totalTools}t]`) : "";
+    const metaText = elapsedText + toolText;
+    const metaVisible = (activity.startTime ? ` (${Math.round((Date.now() - activity.startTime) / 1000)}s)`.length : 0) + (totalTools > 0 ? ` [${totalTools}t]`.length : 0);
+
+    // Tree branch drawing character (fixed 6 columns)
+    const treePrefix = isLast ? "  └── " : "  ├── ";
+
+    // Sub-badge for active tool (fixed 3 columns)
+    const rawIcon = activity.lastTool ? activityIconToEmoji(activity.lastToolIcon) : "";
+    const badgeText = rawIcon ? rawIcon + "  " : "   ";
+
+    // Dynamic numeric instance label (fixed 16 columns)
+    const instIdx = agent.instances.indexOf(instance) + 1;
+    const labelStr = `Run #${instIdx}`;
+    const padLabel = " ".repeat(Math.max(0, 16 - labelStr.length));
+    const formattedLabel = theme.fg("dim", labelStr) + padLabel;
+
+    // Context box variables (aligned starting at Column 27!)
+    const contextVal = activity.contextValue || 0;
+    const dotsInBox = 6;
+    const level = getContextLevel(contextVal);
+
+    const filledDot = theme.fg("error", "•");
+    const emptyDot = theme.fg("dim", "·");
+    const dotString = filledDot.repeat(level) + emptyDot.repeat(dotsInBox - level);
+    const contextBoxStr = theme.fg("dim", "[") + dotString + theme.fg("dim", "]");
+    // Column 4 is exactly 11 characters visual width: "  [••••••] "
+
+    // Remaining space for task column
+    const consumedWidth = 8 + 3 + 16 + 11 + metaVisible + 4;
+    const remaining = Math.max(15, maxWidth - consumedWidth);
+    const taskText = truncateTo(activity.currentTask || instance.question, remaining);
+
+    // Composing the line
+    let line = theme.fg("dim", treePrefix)
+      + theme.fg(statusColor, `${statusIcon} `)
+      + theme.fg("dim", badgeText)
+      + formattedLabel
+      + theme.fg("dim", "  ") + contextBoxStr + theme.fg("dim", " ")
+      + theme.fg("muted", taskText);
+
+    const taskVisible = visibleWidth(taskText);
+    const padTask = " ".repeat(Math.max(0, remaining - taskVisible));
+    line += theme.fg("muted", padTask);
+
+    if (metaText) {
+      line += theme.fg("dim", `  ${metaText}`);
+    } else {
+      line += "  ";
+    }
+
+    // Apply continuous agent background color all the way across the row!
+    if (color.bg) {
+      const currentWidth = visibleWidth(line);
+      if (currentWidth < maxWidth + 2) {
+        line += " ".repeat(maxWidth + 2 - currentWidth);
+      }
+      return color.bg + line + BG_RESET;
     }
 
     return truncateToWidth(line, maxWidth + 2);
@@ -663,47 +779,43 @@ export default function (pi: ExtensionAPI) {
     ctx: any,
   ): Promise<{ output: string; exitCode: number; elapsed: number }> {
     const targetName = expertName.toLowerCase();
+    const key = targetName.replace(/-/g, "_");
+    const rootAgent = state.agents.get(key);
 
-    let stateKey: string | null = null;
-    let totalCount = 0;
-
-    for (const [key, s] of state.agents) {
-      if (s.def.name.toLowerCase() === targetName) {
-        totalCount++;
-        if (s.status !== "researching" && !stateKey) {
-          stateKey = key;
-        }
-      }
+    if (!rootAgent) {
+      const available = Array.from(state.agents.values()).map(s => displayName(s.def.name)).join(", ");
+      return Promise.resolve({
+        output: `Team member "${expertName}" not found. Available: ${available}`,
+        exitCode: 1,
+        elapsed: 0,
+      });
     }
 
-    if (!stateKey) {
-      if (totalCount === 0) {
-        const available = Array.from(state.agents.values()).map(s => displayName(s.def.name)).join(", ");
-        return Promise.resolve({
-          output: `Team member "${expertName}" not found. Available: ${available}`,
-          exitCode: 1,
-          elapsed: 0,
-        });
-      } else {
-        const statuses = Array.from(state.agents.entries()).map(([k, s]) => `${k}=${s.status}`).join(", ");
-        return Promise.resolve({
-          output: `All ${totalCount} instances of "${displayName(expertName)}" are currently busy. Wait for them to finish. Current states: ${statuses}`,
-          exitCode: 1,
-          elapsed: 0,
-        });
-      }
-    }
+    // Spawn a direct child instance
+    const instanceId = `${key}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const instance: AgentInstance = {
+      id: instanceId,
+      question,
+      status: "researching",
+      activity: {
+        contextLoaded: false,
+        lastTool: null,
+        lastToolIcon: null,
+        toolCount: {},
+        currentTask: question.slice(0, 60),
+        lastOutputLine: "",
+        elapsed: 0,
+        startTime: Date.now(),
+        contextValue: 0,
+      },
+    };
+    rootAgent.instances.push(instance);
 
-    // Mark agent as researching so other concurrent queries see it as busy
-    const agent = state.agents.get(stateKey);
-    if (agent) {
-      agent.status = "researching";
-      agent.activity.startTime = Date.now();
-      agent.activity.currentTask = question.slice(0, 60);
-      agent.activity.elapsed = 0;
-      agent.activity.contextValue = 0;
-      updateWidget();
-    }
+    // Update root state
+    rootAgent.status = "researching";
+    rootAgent.activity.startTime = rootAgent.activity.startTime || Date.now();
+    rootAgent.activity.currentTask = `${rootAgent.instances.filter(i => i.status === "researching").length} active instances`;
+    updateWidget();
 
     const startTime = Date.now();
     let model = ctx.model
@@ -724,8 +836,8 @@ export default function (pi: ExtensionAPI) {
 
     args.push(
       "--model", model,
-      "--tools", state.agents.get(stateKey)!.def.tools.join(","),
-      "--system-prompt", state.agents.get(stateKey)!.def.systemPrompt,
+      "--tools", rootAgent.def.tools.join(","),
+      "--system-prompt", rootAgent.def.systemPrompt,
       question
     );
 
@@ -758,10 +870,9 @@ export default function (pi: ExtensionAPI) {
             const event = JSON.parse(cleanLine);
             const usage = event.message?.usage || event.assistantMessageEvent?.partial?.usage || event.assistantMessageEvent?.usage;
             if (usage && typeof usage.input === "number") {
-              const a = state.agents.get(stateKey!);
-              if (a) {
-                a.activity.contextValue = Math.max(a.activity.contextValue || 0, usage.input);
-              }
+              instance.activity.contextValue = Math.max(instance.activity.contextValue || 0, usage.input);
+              rootAgent.activity.contextValue = Math.max(...rootAgent.instances.map(inst => inst.activity.contextValue || 0));
+              updateWidget();
             }
             const delta = event.assistantMessageEvent;
             if (event.type === "text_delta" || (event.type === "message_update" && delta?.type === "text_delta")) {
@@ -769,42 +880,39 @@ export default function (pi: ExtensionAPI) {
                 textChunks.push(delta.delta || "");
                 const full = textChunks.join("");
                 const last = full.split("\n").filter((l: string) => l.trim()).pop() || "";
-                const a = state.agents.get(stateKey!);
-                if (a) {
-                  a.activity.lastOutputLine = last;
-                  a.activity.currentTask = last.slice(0, 60);
-                  updateWidget();
-                }
+                instance.activity.lastOutputLine = last;
+                instance.activity.currentTask = last.slice(0, 60);
+
+                const activeCount = rootAgent.instances.filter(i => i.status === "researching").length;
+                rootAgent.activity.currentTask = activeCount > 0 ? `${activeCount} running: ${last.slice(0, 40)}` : "Complete";
+                updateWidget();
               }
             } else if (event.type === "tool_execution_start") {
-              const a = state.agents.get(stateKey!);
-              if (a) {
-                a.activity.lastTool = event.toolName;
-                a.activity.lastToolIcon = toolToIcon(event.toolName);
-                a.activity.toolCount[event.toolName] = (a.activity.toolCount[event.toolName] || 0) + 1;
-                a.activity.contextLoaded = true;
-                a.activity.currentTask = `Running: ${event.toolName}`;
-                updateWidget();
-              }
+              instance.activity.lastTool = event.toolName;
+              instance.activity.lastToolIcon = toolToIcon(event.toolName);
+              instance.activity.toolCount[event.toolName] = (instance.activity.toolCount[event.toolName] || 0) + 1;
+              instance.activity.contextLoaded = true;
+              instance.activity.currentTask = `Running: ${event.toolName}`;
+
+              rootAgent.activity.lastTool = event.toolName;
+              rootAgent.activity.lastToolIcon = toolToIcon(event.toolName);
+              rootAgent.activity.toolCount[event.toolName] = (rootAgent.activity.toolCount[event.toolName] || 0) + 1;
+              rootAgent.activity.contextLoaded = true;
+              updateWidget();
             } else if (event.type === "tool_execution_end") {
-              const a = state.agents.get(stateKey!);
-              if (a) {
-                a.activity.elapsed = Date.now() - (a.activity.startTime || Date.now());
-                const preview = event.result?.content?.[0]?.text || "";
-                const cleanPreview = preview.split(/\r?\n/).filter((l: string) => l.trim()).pop() || "";
-                if (cleanPreview) {
-                  a.activity.currentTask = cleanPreview.slice(0, 60);
-                }
-                updateWidget();
+              instance.activity.elapsed = Date.now() - (instance.activity.startTime || Date.now());
+              const preview = event.result?.content?.[0]?.text || "";
+              const cleanPreview = preview.split(/\r?\n/).filter((l: string) => l.trim()).pop() || "";
+              if (cleanPreview) {
+                instance.activity.currentTask = cleanPreview.slice(0, 60);
               }
+              rootAgent.activity.elapsed = Date.now() - (rootAgent.activity.startTime || Date.now());
+              updateWidget();
             } else if (event.type === "turn_start") {
-              const a = state.agents.get(stateKey!);
-              if (a) {
-                if (!a.activity.startTime) {
-                  a.activity.startTime = Date.now();
-                }
-                updateWidget();
+              if (!instance.activity.startTime) {
+                instance.activity.startTime = Date.now();
               }
+              updateWidget();
             }
           } catch {}
         }
@@ -833,17 +941,28 @@ export default function (pi: ExtensionAPI) {
         }
 
         const elapsed = Date.now() - startTime;
-        const a = state.agents.get(stateKey!);
-        if (a) {
-          a.status = code === 0 ? "done" : "error";
-          a.activity.elapsed = elapsed;
-          a.activity.currentTask = code === 0 ? "Complete" : `Error (exit ${code})`;
-          a.activity.contextLoaded = false;
-          updateWidget();
+        instance.status = code === 0 ? "done" : "error";
+        instance.activity.elapsed = elapsed;
+        instance.activity.currentTask = code === 0 ? "Complete" : `Error (exit ${code})`;
+        instance.activity.contextLoaded = false;
+
+        const activeCount = rootAgent.instances.filter(i => i.status === "researching").length;
+        const errorCount = rootAgent.instances.filter(i => i.status === "error").length;
+        if (activeCount > 0) {
+          rootAgent.status = "researching";
+          rootAgent.activity.currentTask = `${activeCount} instance(s) active`;
+        } else if (errorCount > 0) {
+          rootAgent.status = "error";
+          rootAgent.activity.currentTask = `Failed (${errorCount} errors)`;
+        } else {
+          rootAgent.status = "done";
+          rootAgent.activity.currentTask = "Complete";
         }
+        rootAgent.activity.elapsed = Date.now() - (rootAgent.activity.startTime || Date.now());
+        updateWidget();
 
         ctx.ui.notify(
-          `${displayName(expertName)} ${code === 0 ? "done" : "error"} in ${Math.round(elapsed / 1000)}s`,
+          `${displayName(expertName)} target done in ${Math.round(elapsed / 1000)}s`,
           code === 0 ? "success" : "error"
         );
 
@@ -857,12 +976,19 @@ export default function (pi: ExtensionAPI) {
       proc.on("error", (err: Error) => {
         activeProcesses.delete(proc);
         const elapsed = Date.now() - startTime;
-        const a = state.agents.get(stateKey!);
-        if (a) {
-          a.status = "error";
-          a.activity.currentTask = `Error: ${err.message}`;
-          updateWidget();
+        
+        instance.status = "error";
+        instance.activity.currentTask = `Error: ${err.message}`;
+
+        const activeCount = rootAgent.instances.filter(i => i.status === "researching").length;
+        const errorCount = rootAgent.instances.filter(i => i.status === "error").length;
+        if (activeCount > 0) {
+          rootAgent.status = "researching";
+        } else {
+          rootAgent.status = "error";
+          rootAgent.activity.currentTask = "Failed";
         }
+        updateWidget();
 
         resolve({
           output: `Error spawning expert: ${err.message}`,
@@ -894,6 +1020,292 @@ export default function (pi: ExtensionAPI) {
         .map(s => `${displayName(s.def.name)}: ${s.status}${s.activity.lastTool ? ` (last: ${s.activity.lastTool})` : ""}`)
         .join("\n");
       _ctx.ui.notify(lines || `No agents loaded in team ${state.currentTeam}`, "info");
+    },
+  });
+
+  pi.registerCommand("tree-simulate", {
+    description: "Run a live step-by-step TUI simulation showing experts research, tool use, and status updates",
+    handler: async (_args, _ctx) => {
+      state.widgetCtx = _ctx;
+      _ctx.ui.notify("Starting live Pi-Pi parallel TUI tree-nesting simulation...", "info");
+
+      const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
+      const getAgent = (name: string) => state.agents.get(name.toLowerCase().replace(/-/g, "_"));
+
+      // ── Step 0: Reset all agents to idle and clear all instances ─────────────
+      for (const [_, agent] of state.agents) {
+        agent.status = "idle";
+        agent.instances = [];
+        agent.activity = {
+          contextLoaded: false,
+          lastTool: null,
+          lastToolIcon: null,
+          toolCount: {},
+          currentTask: "",
+          lastOutputLine: "",
+          elapsed: 0,
+          startTime: null,
+          contextValue: 0,
+        };
+      }
+      updateWidget();
+      await delay(1500);
+
+      // ── Step 1: Spawning parallel instances under Ext and TUI experts ────────
+      _ctx.ui.notify("[Simulation Step 1] Spawning parallel sub-agent instances...", "info");
+
+      const ext = getAgent("ext-expert");
+      if (ext) {
+        ext.status = "researching";
+        ext.activity.startTime = Date.now() - 500;
+        ext.activity.contextValue = 2500;
+        ext.activity.currentTask = "2 parallel instances active";
+
+        // Push instance 1
+        ext.instances.push({
+          id: "ext_1",
+          question: "Read package.json dependencies",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "read",
+            lastToolIcon: "read",
+            toolCount: { read: 1 },
+            currentTask: "Reading package.json structure...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 500,
+            contextValue: 800,
+          }
+        });
+
+        // Push instance 2
+        ext.instances.push({
+          id: "ext_2",
+          question: "Register custom tool metrics",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "find",
+            lastToolIcon: "find",
+            toolCount: { find: 1 },
+            currentTask: "Locating package root paths...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 300,
+            contextValue: 1200,
+          }
+        });
+      }
+
+      const tui = getAgent("tui-expert");
+      if (tui) {
+        tui.status = "researching";
+        tui.activity.startTime = Date.now() - 400;
+        tui.activity.contextValue = 4200;
+        tui.activity.currentTask = "2 parallel instances active";
+
+        // Push instance 1
+        tui.instances.push({
+          id: "tui_1",
+          question: "Draw window borders",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "bash",
+            lastToolIcon: "bash",
+            toolCount: { bash: 1 },
+            currentTask: "Executing screen dimensions probe...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 400,
+            contextValue: 3500,
+          }
+        });
+
+        // Push instance 2
+        tui.instances.push({
+          id: "tui_2",
+          question: "Implement text scroll screen",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "edit",
+            lastToolIcon: "edit",
+            toolCount: { edit: 1 },
+            currentTask: "Updating scroll offset logic...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 200,
+            contextValue: 1800,
+          }
+        });
+      }
+      updateWidget();
+      await delay(2500);
+
+      // ── Step 2: Children update tasks, plus Theme & Config join the tree ─────
+      _ctx.ui.notify("[Simulation Step 2] Sub-instances progressing, new experts joining...", "info");
+
+      if (ext && ext.instances.length >= 2) {
+        // Instance 1 finishes!
+        ext.instances[0].status = "done";
+        ext.instances[0].activity.elapsed = 2500;
+        ext.instances[0].activity.currentTask = "Successfully loaded core packaging dependencies.";
+
+        // Instance 2 changes tasks
+        ext.instances[1].activity.lastTool = "edit";
+        ext.instances[1].activity.lastToolIcon = "edit";
+        ext.instances[1].activity.currentTask = "Overwriting tool validation schemas...";
+        ext.instances[1].activity.contextValue = 8500;
+      }
+
+      if (tui && tui.instances.length >= 2) {
+        tui.instances[0].activity.currentTask = "Parsing box buffer boundaries...";
+        tui.instances[0].activity.contextValue = 11000;
+
+        tui.instances[1].activity.lastTool = "ls";
+        tui.instances[1].activity.lastToolIcon = "ls";
+        tui.instances[1].activity.currentTask = "Listing terminal viewport lines...";
+      }
+
+      const theme = getAgent("theme-expert");
+      if (theme) {
+        theme.status = "researching";
+        theme.activity.startTime = Date.now() - 100;
+        theme.activity.currentTask = "1 active instance";
+
+        theme.instances.push({
+          id: "theme_1",
+          question: "Cozy rose matching schemes",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "find",
+            lastToolIcon: "find",
+            toolCount: { find: 1 },
+            currentTask: "Locating theme assets...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 100,
+            contextValue: 25000,
+          }
+        });
+      }
+
+      const config = getAgent("config-expert");
+      if (config) {
+        config.status = "researching";
+        config.activity.startTime = Date.now() - 50;
+        config.activity.currentTask = "1 active instance";
+
+        config.instances.push({
+          id: "config_1",
+          question: "Register provider endpoint model",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "grep",
+            lastToolIcon: "grep",
+            toolCount: { grep: 1 },
+            currentTask: "Searching global setting bindings...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 50,
+            contextValue: 65000,
+          }
+        });
+      }
+      updateWidget();
+      await delay(2500);
+
+      // ── Step 3: Some experts complete, Skill Expert begins ─────────────────
+      _ctx.ui.notify("[Simulation Step 3] Resolving subprocess runs under Ext and Theme...", "info");
+
+      if (ext) {
+        ext.status = "done";
+        ext.activity.currentTask = "All child instances resolved.";
+        if (ext.instances.length >= 2) {
+          ext.instances[1].status = "done";
+          ext.instances[1].activity.elapsed = 4800;
+          ext.instances[1].activity.currentTask = "Compiled fetch-task-metrics.ts validation rules.";
+        }
+      }
+
+      if (theme) {
+        theme.status = "done";
+        theme.activity.currentTask = "All child instances resolved.";
+        if (theme.instances.length >= 1) {
+          theme.instances[0].status = "done";
+          theme.instances[0].activity.elapsed = 2900;
+          theme.instances[0].activity.currentTask = "Styled color focus indicators and winter rose borders.";
+        }
+      }
+
+      const skill = getAgent("skill-expert");
+      if (skill) {
+        skill.status = "researching";
+        skill.activity.startTime = Date.now() - 150;
+        skill.activity.currentTask = "1 active instance";
+
+        skill.instances.push({
+          id: "skill_1",
+          question: "Validate runner sandboxing policy",
+          status: "researching",
+          activity: {
+            contextLoaded: true,
+            lastTool: "write",
+            lastToolIcon: "write",
+            toolCount: { write: 1 },
+            currentTask: "Writing verification checklists to SKILL.md...",
+            lastOutputLine: "",
+            elapsed: 0,
+            startTime: Date.now() - 150,
+            contextValue: 12000,
+          }
+        });
+      }
+      updateWidget();
+      await delay(2500);
+
+      // ── Step 4: Skill concludes, Config encounters error ──────────────────
+      _ctx.ui.notify("[Simulation Step 4] Tree research completed. Parsing error triggers...", "warning");
+
+      if (tui) {
+        tui.status = "done";
+        tui.activity.currentTask = "All child instances resolved.";
+        if (tui.instances.length >= 2) {
+          tui.instances[0].status = "done";
+          tui.instances[0].activity.elapsed = 5200;
+          tui.instances[0].activity.currentTask = "Grid pane boundary constraints created.";
+
+          tui.instances[1].status = "done";
+          tui.instances[1].activity.elapsed = 4900;
+          tui.instances[1].activity.currentTask = "Nested tree drawing connector lines added.";
+        }
+      }
+
+      if (skill) {
+        skill.status = "done";
+        skill.activity.currentTask = "All child instances resolved.";
+        if (skill.instances.length >= 1) {
+          skill.instances[0].status = "done";
+          skill.instances[0].activity.elapsed = 2800;
+          skill.instances[0].activity.currentTask = "Safegaurded delegation rules successfully merged.";
+        }
+      }
+
+      if (config) {
+        config.status = "error";
+        config.activity.currentTask = "Failed config thread runs";
+        if (config.instances.length >= 1) {
+          config.instances[0].status = "error";
+          config.instances[0].activity.elapsed = 5100;
+          config.instances[0].activity.currentTask = "Error: Invalid model secret key 'API_KEY' (exit 1)";
+        }
+      }
+      updateWidget();
+      _ctx.ui.notify("TUI Tree Simulation finished perfectly! Check nested nodes.", "info");
     },
   });
 

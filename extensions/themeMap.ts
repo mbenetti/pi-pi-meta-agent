@@ -31,6 +31,8 @@ export const THEME_MAP: Record<string, string> = {
 	"pi-pi-tree":         "rose-pine",        // warm creative meta-agent pi-pi-tree
 	"pi-pi":              "rose-pine",        // warm creative meta-agent
 	"purpose-gate":       "tokyo-night",      // intentional, sharp focus
+	"scroll-select-grid":  "rose-pine",
+	"scrolling-cell-helper": "rose-pine",
 	"session-replay":     "catppuccin-mocha", // soft, reflective history
 	"subagent-widget":    "cyberpunk",        // multi-agent futuristic
 	"system-select":      "catppuccin-mocha", // soft selection UI
