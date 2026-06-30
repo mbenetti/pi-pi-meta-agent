@@ -3,9 +3,9 @@
  * Hot-Theme: Rose Pine 🌹
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
-import { Container, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
+import { Text, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { spawn } from "child_process";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
@@ -43,7 +43,7 @@ const packageRoot = join(__dirname, "..");
 let allExperts: Record<string, ExpertDef> = {};
 const activeExperts = new Map<string, ExpertState>();
 let gridColumns = 2;
-let displayWidgetRef: any = null;
+let tuiRef: any = null;
 
 // ── Load Experts Logic ──────────────────────────────────────────────────────
 
@@ -145,7 +145,7 @@ async function runExpert(name: string, question: string, model: string): Promise
 	const startTime = Date.now();
 	state.timer = setInterval(() => {
 		state.elapsed = Math.floor((Date.now() - startTime) / 1000);
-		if (displayWidgetRef) displayWidgetRef.update();
+		tuiRef?.requestRender();
 	}, 1000);
 
 	const args = [
@@ -190,16 +190,60 @@ async function runExpert(name: string, question: string, model: string): Promise
 					state.lastLine = line.length > 50 ? line.substring(0, 47) + "..." : line;
 				}
 			}
-			if (displayWidgetRef) displayWidgetRef.update();
+			tuiRef?.requestRender();
 		});
 
 		proc.on("close", (code) => {
 			if (state.timer) clearInterval(state.timer);
 			state.status = code === 0 ? "done" : "error";
-			if (displayWidgetRef) displayWidgetRef.update();
+			tuiRef?.requestRender();
 			resolve(output || `(Expert returned empty results with exit code ${code})`);
 		});
 	});
+}
+
+function renderCard(name: string, state: ExpertState, cellWidth: number, theme: any): string[] {
+	const colors = hexToAnsi(state.def.color);
+	const label = name.replace("-", " ").toUpperCase();
+	const elapsedText = `${state.elapsed}s`;
+
+	// Colors matching visual states
+	let statusStr = "IDLE";
+	let statusColor = "muted";
+	if (state.status === "researching") { statusStr = "RESEARCHING"; statusColor = "accent"; }
+	if (state.status === "done") { statusStr = "COMPLETED"; statusColor = "success"; }
+	if (state.status === "error") { statusStr = "CRASHED"; statusColor = "error"; }
+
+	const brCode = colors.br;
+
+	// Line 0: top border
+	const line0 = `${brCode}┌${"─".repeat(cellWidth - 2)}┐\x1b[39m\x1b[49m`;
+
+	// Line 1: Header/Label + Elapsed time
+	const labelBold = theme.bold(label);
+	const elapsedMuted = theme.fg("muted", elapsedText);
+	const labelLen = visibleWidth(label);
+	const elapsedLen = visibleWidth(elapsedText);
+	const padding1 = Math.max(0, cellWidth - 4 - labelLen - elapsedLen);
+	const line1 = `${brCode}│\x1b[39m ${labelBold}${" ".repeat(padding1)}${elapsedMuted} ${brCode}│\x1b[39m`;
+
+	// Line 2: Status
+	const statusLabel = `Status: ${statusStr}`;
+	const statusFormatted = theme.fg(statusColor as any, statusLabel);
+	const statusLen = visibleWidth(statusLabel);
+	const padding2 = Math.max(0, cellWidth - 4 - statusLen);
+	const line2 = `${brCode}│\x1b[39m ${statusFormatted}${" ".repeat(padding2)} ${brCode}│\x1b[39m`;
+
+	// Line 3: Last Line
+	const truncatedLastLine = truncateToWidth(state.lastLine, cellWidth - 4);
+	const lastLineLen = visibleWidth(truncatedLastLine);
+	const padding3 = Math.max(0, cellWidth - 4 - lastLineLen);
+	const line3 = `${brCode}│\x1b[39m ${theme.fg("muted", truncatedLastLine)}${" ".repeat(padding3)} ${brCode}│\x1b[39m`;
+
+	// Line 4: bottom border
+	const line4 = `${brCode}└${"─".repeat(cellWidth - 2)}┘\x1b[39m`;
+
+	return [line0, line1, line2, line3, line4];
 }
 
 // ── Extension API Hook ──────────────────────────────────────────────────────
@@ -211,6 +255,48 @@ export default function (pi: ExtensionAPI) {
 		// Apply Rose Pine Theme automatically on hook start
 		ctx.ui.setTheme("rose-pine");
 		ctx.ui.setStatus("pi-pi", "Rose Pine · Meta System Active");
+
+		if (ctx.hasUI) {
+			ctx.ui.setWidget("pi-pi-widget", (tui, theme) => {
+				tuiRef = tui;
+				return {
+					invalidate() {},
+					render(width) {
+						if (activeExperts.size === 0) {
+							return [
+								theme.fg("accent", "🌹 Pi Pi Meta-Agent Core | Ready for build requests"),
+								"",
+								theme.fg("muted", "Querying experts in parallel registers status blocks here...")
+							];
+						}
+
+						const experts = Array.from(activeExperts.entries());
+						const leftMargin = "  "; // 2 spaces left margin
+						const colSpacing = "  "; // 2 spaces between columns
+						const cellWidth = Math.floor((width - 4 - (gridColumns - 1) * 2) / gridColumns);
+						if (cellWidth < 10) return []; // Too narrow
+
+						const lines: string[] = [];
+						for (let i = 0; i < experts.length; i += gridColumns) {
+							const chunk = experts.slice(i, i + gridColumns);
+							const chunkCards = chunk.map(([name, state]) => renderCard(name, state, cellWidth, theme));
+							for (let lineIdx = 0; lineIdx < 5; lineIdx++) {
+								let lineStr = leftMargin;
+								for (let colIdx = 0; colIdx < chunkCards.length; colIdx++) {
+									if (colIdx > 0) {
+										lineStr += colSpacing;
+									}
+									lineStr += chunkCards[colIdx][lineIdx];
+								}
+								lines.push(lineStr);
+							}
+							lines.push("");
+						}
+						return lines;
+					}
+				};
+			});
+		}
 	});
 
 	// Register parallel orchestrator tool
@@ -225,69 +311,13 @@ export default function (pi: ExtensionAPI) {
 		renderCall(args, theme) {
 			return new Text(theme.fg("accent", `🌹 querying specialist [${args.expert}]...`));
 		},
-		async execute(args, ctx) {
-			const model = ctx.model;
-			return await runExpert(args.expert, args.question, model);
-		}
-	});
-
-	// Create Grid panel Widget
-	pi.registerWidget({
-		name: "pi-pi-widget",
-		position: "top",
-		height: 12,
-		render(width, height, theme) {
-			displayWidgetRef = this;
-			const container = new Container(width, height);
-
-			if (activeExperts.size === 0) {
-				container.addChild(new Text(theme.fg("accent", "🌹 Pi Pi Meta-Agent Core | Ready for build requests"), 1, 1));
-				container.addChild(new Text(theme.fg("muted", "Querying experts in parallel registers status blocks here..."), 1, 3));
-				return container;
-			}
-
-			const experts = Array.from(activeExperts.entries());
-			const cellWidth = Math.floor((width - 4) / gridColumns) - 1;
-			const cellHeight = 4;
-
-			experts.forEach(([name, state], idx) => {
-				const col = idx % gridColumns;
-				const row = Math.floor(idx / gridColumns);
-				const x = 2 + col * (cellWidth + 2);
-				const y = 1 + row * (cellHeight + 1);
-
-				if (x + cellWidth > width || y + cellHeight > height) return;
-
-				const colors = hexToAnsi(state.def.color);
-				const label = name.replace("-", " ").toUpperCase();
-				const elapsedText = `${state.elapsed}s`;
-
-				// Colors matching visual states
-				let statusStr = "IDLE";
-				let statusColor = "muted";
-				if (state.status === "researching") { statusStr = "RESEARCHING"; statusColor = "accent"; }
-				if (state.status === "done") { statusStr = "COMPLETED"; statusColor = "success"; }
-				if (state.status === "error") { statusStr = "CRASHED"; statusColor = "error"; }
-
-				const cell = new Container(cellWidth, cellHeight);
-				// Custom borders matching hex colors
-				const bgCode = colors.bg;
-				const brCode = colors.br;
-
-				cell.addChild(new Text(`${brCode}┌${"─".repeat(cellWidth - 2)}┐\x1b[39m\x1b[49m`, 0, 0));
-				cell.addChild(new Text(`${brCode}│\x1b[39m ${theme.bold(label)} ${" ".repeat(Math.max(0, cellWidth - 5 - label.length - elapsedText.length))}${theme.fg("muted", elapsedText)} ${brCode}│\x1b[39m`, 0, 1));
-				
-				const statusLabel = `Status: ${statusStr}`;
-				cell.addChild(new Text(`${brCode}│\x1b[39m ${theme.fg(statusColor as any, statusLabel)}${" ".repeat(Math.max(0, cellWidth - 4 - statusLabel.length))} ${brCode}│\x1b[39m`, 0, 2));
-
-				const lastLineText = truncateToWidth(state.lastLine, cellWidth - 4);
-				cell.addChild(new Text(`${brCode}│\x1b[39m ${theme.fg("muted", lastLineText)}${" ".repeat(Math.max(0, cellWidth - 4 - visibleWidth(lastLineText)))} ${brCode}│\x1b[39m`, 0, 3));
-				cell.addChild(new Text(`${brCode}└${"─".repeat(cellWidth - 2)}┘\x1b[39m`, 0, cellHeight));
-
-				container.addChild(cell, x, y);
-			});
-
-			return container;
+		async execute(toolCallId, params, signal, onUpdate, ctx) {
+			const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unknown";
+			const resultText = await runExpert(params.expert, params.question, model);
+			return {
+				content: [{ type: "text", text: resultText }],
+				details: {},
+			};
 		}
 	});
 }
