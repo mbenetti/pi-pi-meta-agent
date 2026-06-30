@@ -296,7 +296,7 @@ export default function (pi: ExtensionAPI) {
         const lines: string[] = [];
 
         // Header
-        const header = theme.fg("accent", theme.bold("  🌹 Pi-Pi Meta Agent Roster"))
+        const header = theme.fg("accent", theme.bold("  ⚙️ Pi-Pi Meta Agent Builder"))
           + theme.fg("dim", `  │  Team: ${state.currentTeam}`);
         lines.push(header);
         lines.push(theme.fg("dim", "  " + "─".repeat(Math.min(60, Math.floor(width / 3)))));
