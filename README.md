@@ -54,7 +54,13 @@ If you are developing extensions, custom tools, or want to run the dashboard dir
    cd pi-pi-meta-agent
    ```
 
-2. **Run the local extension:**
+2. **Install dependencies locally:**
+   Before running the extension locally, make sure to resolve the platform and TUI packages:
+   ```bash
+   npm install
+   ```
+
+3. **Run the local extension:**
    Execute directly using the local path:
    ```bash
    pi -e extensions/pi-pi-tree.ts
