@@ -30,10 +30,17 @@ This extension is configured to be **disabled by default upon installation**. Th
    ```
 
 2. **Launch on-demand:**
-   Run the executor by referencing the installed module path:
-   ```bash
-   pi -e node_modules/pi-pi-meta-agent/extensions/pi-pi-tree.ts
-   ```
+   Run the executor by referencing the installed module path depending on your project type:
+
+   * **If installed globally:**
+     ```bash
+     pi -e ~/.pi/agent/git/github.com/mbenetti/pi-pi-meta-agent/extensions/pi-pi-tree.ts
+     ```
+
+   * **If installed in a local workspace directory:**
+     ```bash
+     pi -e node_modules/pi-pi-meta-agent/extensions/pi-pi-tree.ts
+     ```
 
 ---
 
