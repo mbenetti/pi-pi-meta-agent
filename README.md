@@ -16,19 +16,42 @@ All of these are visualised dynamically in real-time in a structured TUI Tree La
 | `config-expert` | Global settings, provider models, model registration | Teal |
 | `tui-expert` | Scroll screens, UI boxes, inputs, editors, and buttons | Iris |
 
-## Installation
+## Installation & Running
 
-Open your terminal with Pi and run:
-```bash
-pi install git:github.com/mbenetti/pi-pi-meta-agent.git
-```
+You have two convenient ways to use the Pi-Pi Tree meta-agent dashboard: either by installing it as a package, or running it locally in a cloned repository.
 
-## Usage
+### Option A: Install via Pi Package Manager (Discreet & On-Demand)
 
-Launch the extension using the file path:
-```bash
-pi -e extensions/pi-pi-tree.ts
-```
+This extension is configured to be **disabled by default upon installation**. This ensures your standard daily terminal chats remain clean and lightweight, allowing you to load this immersive dashboard only when you explicitly need it.
+
+1. **Install the package:**
+   ```bash
+   pi install git:github.com/mbenetti/pi-pi-meta-agent.git
+   ```
+
+2. **Launch on-demand:**
+   Run the executor by referencing the installed module path:
+   ```bash
+   pi -e node_modules/pi-pi-meta-agent/extensions/pi-pi-tree.ts
+   ```
+
+---
+
+### Option B: Local Repository Dev (Clone & Run)
+
+If you are developing extensions, custom tools, or want to run the dashboard directly within a local clone:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/mbenetti/pi-pi-meta-agent.git
+   cd pi-pi-meta-agent
+   ```
+
+2. **Run the local extension:**
+   Execute directly using the local path:
+   ```bash
+   pi -e extensions/pi-pi-tree.ts
+   ```
 
 *This automatically loads the warm creative Rose Pine theme, establishes the active Tree layout widget tracking all experts in real-time, registers the `query_tree_researchers` tool for parallel execution, and listens for requests.*
 
