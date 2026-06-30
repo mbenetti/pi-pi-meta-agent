@@ -1,4 +1,4 @@
-(!image)[image_here]
+![Pi-Pi Tree Dashboard](assets/Screenshot%202026-06-30%20at%2019.53.12.png)
 
 # Pi-Pi Tree Parallel Meta-Agent Builder
 
