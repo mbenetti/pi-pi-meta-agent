@@ -48,22 +48,9 @@ This extension is configured to be **disabled by default upon installation**. Th
 
 If you are developing extensions, custom tools, or want to run the dashboard directly within a local clone:
 
-1. **Clone the repository:**
+1. **Clone, install, and run locally in one single command:**
    ```bash
-   git clone https://github.com/mbenetti/pi-pi-meta-agent.git
-   cd pi-pi-meta-agent
-   ```
-
-2. **Install dependencies locally:**
-   Before running the extension locally, make sure to resolve the platform and TUI packages:
-   ```bash
-   npm install
-   ```
-
-3. **Run the local extension:**
-   Execute directly using the local path:
-   ```bash
-   pi -e extensions/pi-pi-tree.ts
+   git clone https://github.com/mbenetti/pi-pi-meta-agent.git && cd pi-pi-meta-agent && npm install && pi -e extensions/pi-pi-tree.ts
    ```
 
 *This automatically loads the warm creative Rose Pine theme, establishes the active Tree layout widget tracking all experts in real-time, registers the `query_tree_researchers` tool for parallel execution, and listens for requests.*
