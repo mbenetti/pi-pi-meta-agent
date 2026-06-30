@@ -37,6 +37,11 @@ This extension is configured to be **disabled by default upon installation**. Th
      pi -e ~/.pi/agent/git/github.com/mbenetti/pi-pi-meta-agent/extensions/pi-pi-tree.ts
      ```
 
+     *(Optional) To simplify running the global command, you can define an alias in your shell configuration file (e.g., `~/.bashrc`, `~/.zshrc`, or `~/.bash_profile`):*
+     ```bash
+     alias pi-pi-tree="pi -e ~/.pi/agent/git/github.com/mbenetti/pi-pi-meta-agent/extensions/pi-pi-tree.ts"
+     ```
+
    * **If installed in a local workspace directory:**
      ```bash
      pi -e node_modules/pi-pi-meta-agent/extensions/pi-pi-tree.ts
