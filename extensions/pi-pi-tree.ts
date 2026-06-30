@@ -646,22 +646,7 @@ export default function (pi: ExtensionAPI) {
     },
     async execute(_toolCallId, params, _signal, onUpdate, ctx) {
       const { expert, question } = params;
-      const key = expert.toLowerCase().replace(/-/g, "_");
-      
-      const agent = state.agents.get(key);
-      if (agent) {
-        agent.status = "researching";
-        updateWidget();
-      }
-
       const result = await queryResearcher(expert, question, ctx);
-
-      if (agent) {
-        agent.status = result.exitCode === 0 ? "done" : "error";
-        agent.activity.elapsed = result.elapsed;
-        agent.activity.currentTask = result.exitCode === 0 ? "Complete" : "Failed";
-        updateWidget();
-      }
 
       return {
         content: [{ type: "text", text: result.output }],
