@@ -55,6 +55,7 @@ interface AgentActivity {
   lastOutputLine: string;
   elapsed: number;
   startTime: number | null;
+  contextValue: number;
 }
 
 interface AgentState {
@@ -262,6 +263,7 @@ export default function (pi: ExtensionAPI) {
               lastOutputLine: "",
               elapsed: 0,
               startTime: null,
+              contextValue: 0,
             },
             color: colors,
           });
@@ -328,6 +330,16 @@ export default function (pi: ExtensionAPI) {
     }));
   }
 
+  function getContextLevel(val: number): number {
+    if (!val || val <= 0) return 0;
+    if (val < 1000) return 1;
+    if (val < 4000) return 2;
+    if (val < 10000) return 3;
+    if (val < 25000) return 4;
+    if (val < 60000) return 5;
+    return 6;
+  }
+
   function renderAgentLine(agent: AgentState, maxWidth: number, theme: any): string {
     const { def, status, activity, color } = agent;
 
@@ -370,19 +382,37 @@ export default function (pi: ExtensionAPI) {
     const nameStr = color.br
       ? color.br + theme.bold(def.displayName) + FG_RESET
       : theme.fg("accent", theme.bold(def.displayName));
-    const nameVisible = visibleWidth(def.displayName);
 
-    // Current task (truncate to remaining space)
-    const remaining = Math.max(15, maxWidth - nameVisible - badgeWidth - 14);
-    const taskText = truncateTo(activity.currentTask || def.description, remaining);
+    const nameColWidth = 15;
+    const plainNameLen = visibleWidth(def.displayName);
+    const padName = " ".repeat(Math.max(0, nameColWidth - plainNameLen));
 
-    // Time + tool count
+    // Time + tool count column width
     const elapsedText = activity.startTime
       ? theme.fg("dim", ` (${Math.round(activity.elapsed / 1000)}s)`)
       : "";
     const toolText = totalTools > 0
       ? theme.fg("dim", ` [${totalTools}t]`)
       : "";
+    const metaText = elapsedText + toolText;
+    const metaVisible = visibleWidth(activity.startTime ? ` (${Math.round(activity.elapsed / 1000)}s)` : "") + (totalTools > 0 ? ` [${totalTools}t]`.length : 0);
+
+    // Context box variables
+    const contextVal = activity.contextValue || 0;
+    const dotsInBox = 6;
+    const level = getContextLevel(contextVal);
+
+    const filledDot = theme.fg("error", "•");
+    const emptyDot = theme.fg("dim", "·");
+    const dotString = filledDot.repeat(level) + emptyDot.repeat(dotsInBox - level);
+    const contextBoxStr = theme.fg("dim", "[") + dotString + theme.fg("dim", "]");
+    // Column 4 is exactly 11 characters visual width: "  [••••••] "
+    const col4Width = 11;
+
+    // Remaining space for task column
+    const consumedWidth = 4 + badgeWidth + nameColWidth + col4Width + metaVisible + 4;
+    const remaining = Math.max(15, maxWidth - consumedWidth);
+    const taskText = truncateTo(activity.currentTask || def.description, remaining);
 
     // Compose line with FIXED COLUMNS
     const bg = color.bg ? color.bg : "";
@@ -392,31 +422,42 @@ export default function (pi: ExtensionAPI) {
       return (bg ? bg : "") + theme.fg(c, s) + (bg ? bgR : "");
     };
 
-    // Column 1: Status icon (4 chars)
+    // Column 1: Status icon (fixed 4 characters)
     let line = colorize(`  ${statusIcon} `, statusColor);
 
-    // Column 2: Activity badges (fixed 8-char column, left-aligned with padding)
+    // Column 2: Activity badges (fixed 8 characters, left-aligned)
     const padBadge = " ".repeat(Math.max(0, badgeWidth - badgeVisible));
     line += colorize(badgeText + padBadge, status === "researching" ? "accent" : "dim");
 
-    // Column 3: Agent name (bold, accent color or custom color)
+    // Column 3: Agent name block (fixed 15 characters, left-aligned)
     let coloredName = color.br
       ? nameStr
       : theme.fg("accent", theme.bold(def.displayName));
 
+    let col3 = coloredName + padName;
     if (bg) {
-      coloredName = bg + coloredName + bgR;
+      col3 = bg + col3 + bgR;
     }
-    line += coloredName;
+    line += col3;
 
-    // Column 4: Task (muted, truncated)
+    // Column 4: Context Indicator Box (fixed 11 characters, aligned!)
+    const col4 = colorize("  ", "dim") + contextBoxStr + colorize(" ", "dim");
+    line += col4;
+
+    // Column 5: Task (muted, left-aligned in column)
     if (taskText) {
       line += colorize(`  ${taskText}`, "muted");
+      // Add padding to keep metadata trailing neat if required
+      const taskVisible = visibleWidth(taskText);
+      const padTask = " ".repeat(Math.max(0, remaining - taskVisible));
+      line += colorize(padTask, "muted");
+    } else {
+      line += colorize(" ".repeat(remaining + 2), "muted");
     }
 
-    // Column 5: Time + tool count (dim)
-    if (elapsedText || toolText) {
-      line += colorize(elapsedText + toolText, "dim");
+    // Column 6: Time + tool count (dim)
+    if (metaText) {
+      line += colorize(`  ${metaText}`, "dim");
     }
 
     return truncateToWidth(line, maxWidth + 2);
@@ -675,6 +716,7 @@ export default function (pi: ExtensionAPI) {
       agent.activity.startTime = Date.now();
       agent.activity.currentTask = question.slice(0, 60);
       agent.activity.elapsed = 0;
+      agent.activity.contextValue = 0;
       updateWidget();
     }
 
@@ -729,6 +771,13 @@ export default function (pi: ExtensionAPI) {
             if (!cleanLine) continue;
 
             const event = JSON.parse(cleanLine);
+            const usage = event.message?.usage || event.assistantMessageEvent?.partial?.usage || event.assistantMessageEvent?.usage;
+            if (usage && typeof usage.input === "number") {
+              const a = state.agents.get(stateKey!);
+              if (a) {
+                a.activity.contextValue = Math.max(a.activity.contextValue || 0, usage.input);
+              }
+            }
             const delta = event.assistantMessageEvent;
             if (event.type === "text_delta" || (event.type === "message_update" && delta?.type === "text_delta")) {
               if (delta) {
